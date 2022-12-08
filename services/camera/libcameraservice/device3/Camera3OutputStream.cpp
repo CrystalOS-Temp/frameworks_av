@@ -1402,7 +1402,6 @@ nsecs_t Camera3OutputStream::syncTimestampToDisplayLocked(nsecs_t t) {
 
     const VsyncEventData& vsyncEventData = parcelableVsyncEventData.vsync;
     nsecs_t currentTime = systemTime();
-    nsecs_t minPresentT = mLastPresentTime + vsyncEventData.frameInterval / 2;
 
     // Reset capture to present time offset if:
     // - More than 1 second between frames.
@@ -1468,43 +1467,6 @@ nsecs_t Camera3OutputStream::syncTimestampToDisplayLocked(nsecs_t t) {
             minDiff = std::abs(vsyncTime.expectedPresentationTime - idealPresentT);
         }
     }
-
-    if (expectedPresentT == mLastPresentTime && expectedPresentT <=
-            vsyncEventData.frameTimelines[maxTimelines].expectedPresentationTime) {
-        // Couldn't find a reasonable presentation time. Using last frame's
-        // presentation time would cause a frame drop. The best option now
-        // is to use the next VSync as long as the last presentation time
-        // doesn't already has the maximum latency, in which case dropping the
-        // buffer is more desired than increasing latency.
-        //
-        // Example: (60fps camera, 59.9hz refresh):
-        //   capture readout:  | t1 | t1 | .. | t1 | .. | t1 | .. | t1 |
-        //                      \    \    \     \    \    \    \     \   \
-        //   queue to BQ:       |    |    |     |    |    |    |      |    |
-        //                      \    \    \     \    \     \    \      \    \
-        //   display VSYNC:      | t2 | t2 | ... | t2 | ... | t2 | ... | t2 |
-        //
-        //   |: 1 frame
-        //   t1 : 16.67ms
-        //   t2 : 16.69ms
-        //
-        // It takes 833 frames for capture readout count and display VSYNC count to be off
-        // by 1.
-        //  - At frames [0, 832], presentationTime is set to timeline[0]
-        //  - At frames [833, 833*2-1], presentationTime is set to timeline[1]
-        //  - At frames [833*2, 833*3-1] presentationTime is set to timeline[2]
-        //  - At frame 833*3, no presentation time is found because we only
-        //    search for timeline[0..2].
-        //  - Drop one buffer is better than further extend the presentation
-        //    time.
-        //
-        // However, if frame 833*2 arrives 16.67ms early (right after frame
-        // 833*2-1), no presentation time can be found because
-        // getLatestVsyncEventData is called early. In that case, it's better to
-        // set presentation time by offseting last presentation time.
-        expectedPresentT += vsyncEventData.frameInterval;
-    }
-
     mLastCaptureTime = t;
     mLastPresentTime = expectedPresentT;
 
