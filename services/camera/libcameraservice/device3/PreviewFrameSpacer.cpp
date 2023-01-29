@@ -65,8 +65,8 @@ bool PreviewFrameSpacer::threadLoop() {
         return true;
     }
 
-    // Cache the frame to match capture time interval, for up to 33ms
-    nsecs_t expectedQueueTime = mLastCameraPresentTime + captureInterval;
+    // Cache the frame to match readout time interval, for up to kMaxFrameWaitTime
+    nsecs_t expectedQueueTime = mLastCameraPresentTime + readoutInterval;
     nsecs_t frameWaitTime = std::min(kMaxFrameWaitTime, expectedQueueTime - currentTime);
     if (frameWaitTime > 0 && mPendingBuffers.size() < 2) {
         mBufferCond.waitRelative(mLock, frameWaitTime);
@@ -113,6 +113,7 @@ void PreviewFrameSpacer::queueBufferToClientLocked(
         }
     }
 
+    parent->onCachedBufferQueued();
     mLastCameraPresentTime = currentTime;
     mLastCameraCaptureTime = bufferHolder.timestamp;
 }
